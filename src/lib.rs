@@ -102,18 +102,24 @@ mod request_param;
 mod session;
 mod time;
 
-/// We generally support async reads
+/// We generally support async reads, and let the filesystem implementation
+/// truncate directly in its `open()` handler rather than forcing the kernel
+/// to split an `open(O_TRUNC)` into a separate, disjoint `SETATTR` it has to
+/// correlate back to the handle that requested it after the fact.
 #[cfg(not(target_os = "macos"))]
-const INIT_FLAGS: InitFlags = InitFlags::FUSE_ASYNC_READ.union(InitFlags::FUSE_BIG_WRITES);
+const INIT_FLAGS: InitFlags = InitFlags::FUSE_ASYNC_READ
+    .union(InitFlags::FUSE_BIG_WRITES)
+    .union(InitFlags::FUSE_ATOMIC_O_TRUNC);
 // TODO: Add FUSE_EXPORT_SUPPORT
 
-/// On macOS, we additionally support case insensitiveness, volume renames and xtimes
+/// On macOS, we additionally support case insensitiveness, volume renames and xtimes.
 /// TODO: we should eventually let the filesystem implementation decide which flags to set
 #[cfg(target_os = "macos")]
 const INIT_FLAGS: InitFlags = InitFlags::FUSE_ASYNC_READ
     .union(InitFlags::FUSE_CASE_INSENSITIVE)
     .union(InitFlags::FUSE_VOL_RENAME)
-    .union(InitFlags::FUSE_XTIMES);
+    .union(InitFlags::FUSE_XTIMES)
+    .union(InitFlags::FUSE_ATOMIC_O_TRUNC);
 // TODO: Add FUSE_EXPORT_SUPPORT and FUSE_BIG_WRITES (requires ABI 7.10)
 
 fn default_init_flags(capabilities: InitFlags) -> InitFlags {
