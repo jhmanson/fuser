@@ -3,3 +3,4 @@
 .idea/
 logs/
 docker-cargo-caches/
+.DS_Store
