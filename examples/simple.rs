@@ -100,6 +100,11 @@ struct Args {
     /// Sets the level of verbosity
     #[clap(short, action = clap::ArgAction::Count)]
     v: u8,
+
+    /// Extra mount option passed through as-is (e.g. `-o backend=fskit`
+    /// for macFUSE's FSKit backend). Repeatable.
+    #[clap(short = 'o')]
+    options: Vec<String>,
 }
 
 const BLOCK_SIZE: u32 = 512;
@@ -2179,6 +2184,8 @@ fn main() {
 
     let mut cfg = Config::default();
     cfg.mount_options = vec![MountOption::FSName("fuser".to_string())];
+    cfg.mount_options
+        .extend(args.options.iter().cloned().map(MountOption::CUSTOM));
 
     if args.suid {
         info!("setuid bit support enabled");

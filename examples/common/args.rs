@@ -25,6 +25,11 @@ pub struct CommonArgs {
     /// when multiple threads are used. Requires Linux 4.5+.
     #[clap(long)]
     pub clone_fd: bool,
+
+    /// Extra mount option passed through as-is (e.g. `-o backend=fskit`
+    /// for macFUSE's FSKit backend). Repeatable.
+    #[clap(short = 'o')]
+    pub options: Vec<String>,
 }
 
 impl CommonArgs {
@@ -41,6 +46,9 @@ impl CommonArgs {
         {
             config.acl = SessionACL::All;
         }
+        config
+            .mount_options
+            .extend(self.options.iter().cloned().map(MountOption::CUSTOM));
         config.n_threads = Some(self.n_threads);
         config.clone_fd = self.clone_fd;
         config
