@@ -83,6 +83,8 @@ pub use crate::session::SessionUnmounter;
 mod access_flags;
 mod bsd_file_flags;
 mod channel;
+#[cfg(fuser_fskit)]
+mod channel_fskit;
 mod dev_fuse;
 /// Experimental APIs
 #[cfg(feature = "experimental")]

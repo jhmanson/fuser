@@ -170,9 +170,9 @@ impl<FS: Filesystem> Session<FS> {
                 format!("auto_unmount requires acl != Owner, got: {:?}", options.acl),
             ));
         }
-        let (file, mount) = Mount::new(mountpoint, &options.mount_options, options.acl)?;
+        let (ch, mount) = Mount::new(mountpoint, &options.mount_options, options.acl)?;
 
-        let ch = Channel::new(file);
+        let allowed = ch.caller_acl(options.acl);
 
         let mut session = Session {
             filesystem: FilesystemHolder {
@@ -182,13 +182,20 @@ impl<FS: Filesystem> Session<FS> {
             mount: UmountOnDrop {
                 mount: Arc::new(Mutex::new(Some(mount))),
             },
-            allowed: options.acl,
+            allowed,
             session_owner: geteuid(),
             proto_version: None,
             config: options.clone(),
         };
 
-        session.handshake()?;
+        if let Err(err) = session.handshake() {
+            // An FSKit mount that fails closes the channel under the handshake.
+            #[cfg(fuser_fskit)]
+            if let Some(mount_err) = session.ch.fskit_mount_error() {
+                return Err(mount_err);
+            }
+            return Err(err);
+        }
 
         Ok(session)
     }

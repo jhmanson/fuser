@@ -3,6 +3,8 @@ fn main() {
     println!(
         "cargo::rustc-check-cfg=cfg(fuser_mount_impl, values(\"pure-rust\", \"libfuse2\", \"libfuse3\", \"macos-no-mount\"))"
     );
+    // macFUSE's FSKit backend through MFMount.framework (src/channel_fskit.rs).
+    println!("cargo::rustc-check-cfg=cfg(fuser_fskit)");
 
     let target_os =
         std::env::var("CARGO_CFG_TARGET_OS").expect("CARGO_CFG_TARGET_OS should be set");
@@ -30,7 +32,8 @@ fn main() {
             // struct layout (fuse_abi.rs) is needed for both backends, not
             // just the libfuse2 one it was originally tied to.
             match configure_libfuse3() {
-                Ok(()) => {}
+                // FSKit mounts load MFMount.framework at runtime.
+                Ok(()) => println!("cargo::rustc-cfg=fuser_fskit"),
                 Err(e3) => {
                     pkg_config::Config::new()
                         .atleast_version("2.6.0")
