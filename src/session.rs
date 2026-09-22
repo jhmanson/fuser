@@ -328,6 +328,8 @@ impl<FS: Filesystem> Session<FS> {
             }
         }
 
+        crate::optrace::report();
+
         let Some(filesystem) = Arc::get_mut(&mut filesystem) else {
             return Err(io::Error::other(
                 "BUG: must have one refcount for filesystem",
@@ -536,7 +538,10 @@ impl<FS: Filesystem> SessionEventLoop<FS> {
         loop {
             // Read the next request from the given channel to kernel driver
             // The kernel driver makes sure that we get exactly one request per read
-            match self.ch.receive_retrying(buf) {
+            let received = crate::optrace::now();
+            let result = self.ch.receive_retrying(buf);
+            crate::optrace::receive_done(received);
+            match result {
                 Ok(size) => match RequestWithSender::new(self.ch.sender(), &buf[..size]) {
                     // Dispatch request
                     Some(req) => {
@@ -544,7 +549,9 @@ impl<FS: Filesystem> SessionEventLoop<FS> {
                             req.reply::<ReplyEmpty>().ok();
                             return Ok(());
                         } else {
-                            req.dispatch(self)
+                            let dispatched = crate::optrace::now();
+                            req.dispatch(self);
+                            crate::optrace::dispatch_done(&buf[..size], dispatched);
                         }
                     }
                     // Quit loop on illegal request
