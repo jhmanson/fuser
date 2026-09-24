@@ -208,8 +208,13 @@ impl FskitChannel {
             MF_MOUNT_SUCCESS => return Ok(()),
             MF_MOUNT_UNSUPPORTED_OS => "macOS version not supported by macFUSE's FSKit backend",
             MF_MOUNT_HELPER_TOOLS_FAILED => "macFUSE helper tools could not be installed",
+            // Also what macFUSE reports for a registered but disabled
+            // extension, e.g. after a macFUSE upgrade.
             MF_MOUNT_EXTENSION_NOT_FOUND => {
-                "macFUSE's FSKit extension is not registered (open macfuse.app once)"
+                "macFUSE's FSKit extension is not registered or not enabled: open \
+                 /Library/Filesystems/macfuse.fs/Contents/Resources/macfuse.app once, \
+                 then turn on macFUSE in System Settings > General > \
+                 Login Items & Extensions > File System Extensions"
             }
             MF_MOUNT_EXTENSION_NEEDS_APPROVAL => {
                 "macFUSE's FSKit extension needs approval (System Settings > General > \
