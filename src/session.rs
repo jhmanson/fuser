@@ -106,10 +106,7 @@ struct UmountOnDrop {
 
 impl UmountOnDrop {
     fn umount(&self) -> io::Result<()> {
-        if let Some(mount) = self.mount.lock().take() {
-            mount.umount()?;
-        }
-        Ok(())
+        self.mount.lock().as_mut().map_or(Ok(()), Mount::umount)
     }
 }
 
@@ -513,10 +510,7 @@ pub struct SessionUnmounter {
 impl SessionUnmounter {
     /// Unmount the filesystem
     pub fn unmount(&mut self) -> io::Result<()> {
-        if let Some(mount) = std::mem::take(&mut *self.mount.lock()) {
-            mount.umount()?;
-        }
-        Ok(())
+        self.mount.lock().as_mut().map_or(Ok(()), Mount::umount)
     }
 }
 
@@ -581,11 +575,16 @@ pub struct BackgroundSession {
 }
 
 impl BackgroundSession {
+    /// Unmount the filesystem. On failure (e.g. `EBUSY` while the mount is
+    /// in use) the filesystem stays mounted and served, and the call can be
+    /// retried.
+    pub fn umount(&mut self) -> io::Result<()> {
+        self.mount.as_mut().map_or(Ok(()), Mount::umount)
+    }
+
     /// Unmount the filesystem and join the background thread.
     pub fn umount_and_join(mut self) -> io::Result<()> {
-        if let Some(mount) = self.mount.take() {
-            mount.umount()?;
-        }
+        self.umount()?;
         self.join()
     }
 

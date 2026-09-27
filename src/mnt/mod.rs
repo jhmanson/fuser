@@ -161,14 +161,14 @@ impl Mount {
         }
     }
 
-    pub(crate) fn umount(mut self) -> io::Result<()> {
-        match self.mount_impl.take() {
-            Some(mut mount) => {
-                info!("Unmounting {}", self.mount_point.display());
-                mount.umount_impl()
-            }
-            None => Ok(()),
+    /// Unmounts. On failure the mount is kept, so the call can be retried.
+    pub(crate) fn umount(&mut self) -> io::Result<()> {
+        if let Some(mount) = &mut self.mount_impl {
+            info!("Unmounting {}", self.mount_point.display());
+            mount.umount_impl()?;
+            self.mount_impl = None;
         }
+        Ok(())
     }
 }
 
