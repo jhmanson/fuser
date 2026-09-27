@@ -12,10 +12,12 @@ use crate::SessionACL;
 use crate::dev_fuse::DevFuse;
 use crate::mnt::MountOption;
 use crate::mnt::fuse3_sys::fuse_lowlevel_ops;
+#[cfg(target_os = "linux")]
 use crate::mnt::fuse3_sys::fuse_session_destroy;
 use crate::mnt::fuse3_sys::fuse_session_fd;
 use crate::mnt::fuse3_sys::fuse_session_mount;
 use crate::mnt::fuse3_sys::fuse_session_new;
+#[cfg(target_os = "linux")]
 use crate::mnt::fuse3_sys::fuse_session_unmount;
 use crate::mnt::with_fuse_args;
 
