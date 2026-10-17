@@ -161,15 +161,31 @@ impl Mount {
         }
     }
 
-    /// Unmounts. On failure the mount is kept, so the call can be retried.
+    /// Unmounts. On failure (e.g. `EBUSY`) the mount is kept, so the call can
+    /// be retried, unless the error shows nothing is mounted at the mount
+    /// point (`EINVAL`, `ENOENT`: e.g. after an external `umount`). Then the
+    /// mount is dropped without another unmount, so later calls return `Ok`
+    /// and drop leaves alone a volume mounted at the path since.
     pub(crate) fn umount(&mut self) -> io::Result<()> {
         if let Some(mount) = &mut self.mount_impl {
             info!("Unmounting {}", self.mount_point.display());
-            mount.umount_impl()?;
+            if let Err(err) = mount.umount_impl() {
+                if nothing_mounted(&err) {
+                    self.mount_impl = None;
+                }
+                return Err(err);
+            }
             self.mount_impl = None;
         }
         Ok(())
     }
+}
+
+/// Whether an unmount error shows that nothing is mounted at the mount point:
+/// `unmount(2)` and Linux `umount(2)` fail with `EINVAL` on a directory that
+/// is not a mount point, and with `ENOENT` on a path that no longer exists.
+fn nothing_mounted(err: &io::Error) -> bool {
+    matches!(err.raw_os_error(), Some(libc::EINVAL | libc::ENOENT))
 }
 
 impl Drop for Mount {
@@ -268,6 +284,21 @@ mod test {
                 );
             },
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn unmounting_a_plain_directory_shows_nothing_mounted() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let path = std::ffi::CString::new(tmp.path().as_os_str().as_bytes()).unwrap();
+        let err = io::Error::from(libc_umount(&path).unwrap_err());
+        assert!(nothing_mounted(&err), "{err}");
+        let gone = std::ffi::CString::new(tmp.path().join("gone").as_os_str().as_bytes()).unwrap();
+        let err = io::Error::from(libc_umount(&gone).unwrap_err());
+        assert!(nothing_mounted(&err), "{err}");
+        assert!(!nothing_mounted(&io::Error::from_raw_os_error(libc::EBUSY)));
     }
 
     #[cfg(not(target_os = "macos"))]

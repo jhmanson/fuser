@@ -151,3 +151,57 @@ fn kext_failed_umount_keeps_the_mount_and_can_be_retried() {
 fn fskit_failed_umount_keeps_the_mount_and_can_be_retried() {
     a_failed_umount_keeps_the_mount_and_can_be_retried(true);
 }
+
+/// `/sbin/umount dir`, retried while busy (see `umount_when_idle`).
+fn external_umount(dir: &Path) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !std::process::Command::new("/sbin/umount")
+        .arg(dir)
+        .status()
+        .unwrap()
+        .success()
+    {
+        assert!(Instant::now() < deadline, "umount {} failed", dir.display());
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn after_an_external_umount_drop_leaves_a_new_mount_alone(fskit: bool) {
+    if !enabled() {
+        eprintln!("skipped: set FUSER_MACFUSE_TESTS=1 to run");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let mut first = mount(dir.path(), fskit);
+    external_umount(dir.path());
+    let err = first.umount().unwrap_err();
+    assert_eq!(err.raw_os_error(), Some(libc::EINVAL), "{err}");
+
+    let mut second = mount(dir.path(), fskit);
+    let mounted_dev = std::fs::metadata(dir.path()).unwrap().dev();
+    let _cleanup = ForceUnmountOnPanic {
+        dir: dir.path(),
+        mounted_dev,
+    };
+    // Drops `first`'s mount.
+    first.join().unwrap();
+    assert_eq!(
+        std::fs::metadata(dir.path()).unwrap().dev(),
+        mounted_dev,
+        "the second mount survives the first session's end"
+    );
+
+    umount_when_idle(&mut second).unwrap();
+    assert_ne!(std::fs::metadata(dir.path()).unwrap().dev(), mounted_dev);
+    second.join().unwrap();
+}
+
+#[test]
+fn kext_drop_after_an_external_umount_leaves_a_new_mount_alone() {
+    after_an_external_umount_drop_leaves_a_new_mount_alone(false);
+}
+
+#[test]
+fn fskit_drop_after_an_external_umount_leaves_a_new_mount_alone() {
+    after_an_external_umount_drop_leaves_a_new_mount_alone(true);
+}

@@ -53,9 +53,16 @@ impl MountImpl {
     }
 
     pub(crate) fn umount_impl(&mut self) -> io::Result<()> {
-        crate::mnt::libc_umount(&self.mountpoint)?;
-        // Ends the session loop's receive, as the device fd does on unmount.
-        self.channel.close();
-        Ok(())
+        let result = crate::mnt::libc_umount(&self.mountpoint).map_err(io::Error::from);
+        let gone = match &result {
+            Ok(()) => true,
+            Err(err) => crate::mnt::nothing_mounted(err),
+        };
+        if gone {
+            // Ends the session loop's receive, as the device fd does on
+            // unmount.
+            self.channel.close();
+        }
+        result
     }
 }
