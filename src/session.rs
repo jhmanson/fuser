@@ -556,7 +556,9 @@ impl<FS: Filesystem> SessionEventLoop<FS> {
                         ));
                     }
                 },
-                Err(nix::errno::Errno::ENODEV) => return Ok(()),
+                // Unmounted. ECONNABORTED: the unmount tore the connection
+                // down while this read was taking a request off its queue.
+                Err(nix::errno::Errno::ENODEV | nix::errno::Errno::ECONNABORTED) => return Ok(()),
                 Err(err) => return Err(err.into()),
             }
         }

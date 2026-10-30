@@ -133,8 +133,13 @@ impl ReplyRaw {
         assert!(self.sender.is_some());
         let sender = self.sender.take().unwrap();
         let res = response.with_iovec(self.unique, |iov| sender.send(iov));
-        if let Err(err) = res {
-            error!("Failed to send FUSE reply: {err}");
+        match res {
+            // The kernel no longer waits for the request: its caller was
+            // interrupted, or an unmount tore the connection down first.
+            // libfuse ignores this too.
+            Err(err) if err.raw_os_error() == Some(libc::ENOENT) => {}
+            Err(err) => error!("Failed to send FUSE reply: {err}"),
+            Ok(()) => {}
         }
     }
     pub(crate) fn send_ll(mut self, response: &impl Response) {
